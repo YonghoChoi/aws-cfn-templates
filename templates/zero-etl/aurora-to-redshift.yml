@@ -1,0 +1,226 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ---
+Parameters:
+  myIp: 
+    Type: String
+    Description: my ip
+Resources:
+  #------------------------------------------------------------
+  # VPC
+  #------------------------------------------------------------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties: {}
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: VPC
+      InternetGatewayId:
+        Ref: InternetGateway
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      CidrBlock: 10.0.10.0/24
+      MapPublicIpOnLaunch: true
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ""
+      CidrBlock: 10.0.11.0/24
+      MapPublicIpOnLaunch: true
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      CidrBlock: 10.0.20.0/24
+      MapPublicIpOnLaunch: false
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ""
+      CidrBlock: 10.0.21.0/24
+      MapPublicIpOnLaunch: false
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt "NatGatewayEIP.AllocationId"
+      SubnetId: !Ref PublicSubnet1
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  DefaultPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+
+  #------------------------------------------------------------
+  # Redshift
+  #------------------------------------------------------------
+  ClusterSubnetGroup:
+    Type: AWS::Redshift::ClusterSubnetGroup
+    Properties:
+      Description: for Redshift
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+  ClusterParameterGroup:
+    Type: AWS::Redshift::ClusterParameterGroup
+    Properties:
+      Description: for zero etl
+      ParameterGroupFamily: redshift-1.0
+      Parameters:
+        - ParameterName: enable_case_sensitive_identifier
+          ParameterValue: "true"
+  RedsfhitSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Open database for access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5439
+          ToPort: 5439
+          CidrIp: !Sub "${myIp}/32"
+  Cluster:
+    Type: AWS::Redshift::Cluster
+    Properties:
+      ClusterIdentifier: zero-etl-demo
+      MasterUsername: admin
+      MasterUserPassword: Awsuser123
+      NodeType: ra3.4xlarge
+      ClusterType: multi-node
+      NumberOfNodes: 2
+      DBName: dev
+      Encrypted: true
+      PubliclyAccessible: true
+      ClusterParameterGroupName: !Ref ClusterParameterGroup
+      ClusterSubnetGroupName: !Ref ClusterSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref RedsfhitSecurityGroup
+
+  #------------------------------------------------------------
+  # Aurora MySQL
+  #------------------------------------------------------------
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: for Aurora MySQL
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+  DBClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: CloudFormation Sample Aurora Cluster Parameter Group
+      Family: aurora-mysql8.0
+      Parameters:
+        binlog_backup: 0
+        binlog_replication_globaldb: 0
+        binlog_format: ROW
+        aurora_enhanced_binlog: 1
+        binlog_row_metadata: FULL
+        binlog_row_image: FULL
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Open database for access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: !Sub "${myIp}/32"
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DBClusterIdentifier: zero-etl-demo
+      MasterUsername: admin
+      MasterUserPassword: Awsuser123
+      Engine: aurora-mysql
+      EngineVersion: 8.0.mysql_aurora.3.05.1
+      DBClusterParameterGroupName: !Ref DBClusterParameterGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+      - !GetAtt RDSSecurityGroup.GroupId
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DBCluster
+      DBInstanceIdentifier: zero-etl-demo
+      DBInstanceClass: db.r5.large
+      Engine: aurora-mysql
+      PubliclyAccessible: true
+Outputs:
+  AccountId:
+    Description: Current Account ID
+    Value: !Ref "AWS::AccountId"
+  RedshiftNamespaceArn:
+    Description: Redshift Cluster Namespace ARN
+    Value: !GetAtt Cluster.ClusterNamespaceArn
+  RedshiftEndpoint:
+    Description: Redshift Cluster Endpoint
+    Value: !Sub "${Cluster.Endpoint.Address}:${Cluster.Endpoint.Port}"
+  DBInstanceArn:
+    Description: Aurora MySQL DB Instance ARN
+    Value: !GetAtt DBInstance.DBInstanceArn
+  RDSEndpoint:
+    Description: RDS(Aurora MySQL) Endpoint
+    Value: !Sub "${DBInstance.Endpoint.Address}:${DBInstance.Endpoint.Port}"
+  
