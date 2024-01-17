@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  DDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ZeroETLDemo
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      KeySchema:
+        - AttributeName: "CustomerId"
+          KeyType: "HASH"
+        - AttributeName: "Name"
+          KeyType: "RANGE"
+      AttributeDefinitions:
+        - AttributeName: "CustomerId"
+          AttributeType: "S"
+        - AttributeName: "Name"
+          AttributeType: "S"
+      SSESpecification:
+        SSEEnabled: False
+      ImportSourceSpecification:
+        InputCompressionType: "NONE"
+        InputFormat: "CSV"
+        S3BucketSource:
+          S3Bucket: "yonghoch"
+          S3KeyPrefix: "demo/dummy.csv"
+  OpenSearchDomain:
+    Type: 'AWS::OpenSearchService::Domain'
+    Properties:
+      DomainName: zero-etl-demo
+      EngineVersion: 'OpenSearch_2.11'
+      ClusterConfig:
+        InstanceType: m5.large.search
+        InstanceCount: 2
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions: 
+          MasterUserName: Admin
+          MasterUserPassword: Awsuser!23
+      EncryptionAtRestOptions: 
+          Enabled: true
+      NodeToNodeEncryptionOptions:
+          Enabled: true
+      DomainEndpointOptions:
+          EnforceHTTPS: true
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp3
+        VolumeSize: 100
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: '*'
+Outputs:
+  OpenSearchEndpoint:
+    Description: OpenSearch Endpoint URL
+    Value: !Sub ${OpenSearchDomain.DomainEndpoint}

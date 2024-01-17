@@ -1,4 +1,5 @@
 
+## CloudFormation 실행 명령어
 - 스택 생성
 ```
 aws cloudformation create-stack \
@@ -22,4 +23,19 @@ aws cloudformation update-stack \
 aws cloudformation delete-stack \
   --region us-east-1 \
   --stack-name myteststack
+```
+
+## 참고
+1. DynamoDB 테이블용 더미 데이터 생성 (Python)
+```
+# pip install Faker
+import csv
+from faker import Faker
+fake = Faker()
+
+with open('dummy.csv', 'w', newline='') as file:
+     writer = csv.writer(file)
+     writer.writerow(["Name", "Address", "Text"])
+     for _ in range(10000):
+      writer.writerow([fake.name(), fake.address(), fake.text()])
 ```
