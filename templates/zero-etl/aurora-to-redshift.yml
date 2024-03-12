@@ -158,6 +158,29 @@ Resources:
   #------------------------------------------------------------
   # Aurora MySQL
   #------------------------------------------------------------
+  RDSRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - rds.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                - 's3:*'
+                - 's3-object-lambda:*'
+                Resource: '*'
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -177,6 +200,7 @@ Resources:
         aurora_enhanced_binlog: 1
         binlog_row_metadata: FULL
         binlog_row_image: FULL
+        aws_default_s3_role: !GetAtt RDSRole.Arn
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -195,6 +219,8 @@ Resources:
       MasterUserPassword: Awsuser123
       Engine: aurora-mysql
       EngineVersion: 8.0.mysql_aurora.3.05.1
+      AssociatedRoles:
+      - RoleArn: !GetAtt RDSRole.Arn
       DBClusterParameterGroupName: !Ref DBClusterParameterGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
