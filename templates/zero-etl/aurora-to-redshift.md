@@ -14,11 +14,17 @@ curl wgetip.com
 ```
 4. CloudFormation 스택 생성
 ```
+STACK_NAME=zeroetl-aurora-to-redshift
 aws cloudformation create-stack \
   --region us-east-1 \
-  --stack-name zeroetl-aurora-to-redshift \
+  --stack-name $STACK_NAME \
   --template-body file://aurora-to-redshift.yml \
+  --capabilities CAPABILITY_IAM \
   --parameters ParameterKey=myIp,ParameterValue=<3번에서 확인한 IP 입력>
+
+# 완료 될때까지 대기
+echo "Waiting for stack to be created"
+aws cloudformation wait stack-create-complete --stack-name $STACK_NAME  
 ```
 4. 아래 명령 실행 결과에 따른 정보로 DBeaver 또는 MySQL CLI 도구로 데이터 확인
 ```
@@ -121,4 +127,11 @@ LOAD DATA FROM S3 PREFIX 's3://redshift-demos/ri2023/ant307/data/order-line/orde
 LOAD DATA FROM S3 PREFIX 's3://redshift-demos/ri2023/ant307/data/order-line/lineitem/' INTO TABLE lineitem FIELDS TERMINATED BY '|';            
 LOAD DATA FROM S3 PREFIX 's3://redshift-demos/ri2023/ant307/data/order-line/part/' INTO TABLE part FIELDS TERMINATED BY '|';            
 LOAD DATA FROM S3 PREFIX 's3://redshift-demos/ri2023/ant307/data/order-line/partsupp/' INTO TABLE partsupp FIELDS TERMINATED BY '|';
+```
+
+## Trouble shooting
+1. Aurora MySQL engine 버전이 존재하지 않다는 오류가 발생할 경우 (마이너버전이 없어질 수 있음)
+```
+# 아래 명령으로 버전 확인
+aws rds describe-db-engine-versions --engine aurora-mysql --engine-version 8.0
 ```

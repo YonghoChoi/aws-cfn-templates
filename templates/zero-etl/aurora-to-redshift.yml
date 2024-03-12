@@ -218,7 +218,7 @@ Resources:
       MasterUsername: admin
       MasterUserPassword: Awsuser123
       Engine: aurora-mysql
-      EngineVersion: 8.0.mysql_aurora.3.05.1
+      EngineVersion: 8.0.mysql_aurora.3.05.2
       AssociatedRoles:
       - RoleArn: !GetAtt RDSRole.Arn
       DBClusterParameterGroupName: !Ref DBClusterParameterGroup
